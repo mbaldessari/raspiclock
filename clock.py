@@ -32,7 +32,10 @@ async def handle_post(request):
     logging.debug("Received: %s", data)
     await action_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font3x5)
-    sphd.show()
+    for i in range(100):
+        sphd.show()
+        sphd.scroll(1)
+        await asyncio.sleep(0.05)
     await asyncio.sleep(2)
     action_lock.release()
 
