@@ -32,6 +32,7 @@ sys.excepthook = my_handler
 
 async def handle_post(request):
     data = await request.text()
+    data = data[:100]
     logging.debug("Received: %s", data)
     await action_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font5x7)
