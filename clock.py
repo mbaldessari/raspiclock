@@ -18,8 +18,8 @@ logging.basicConfig(
 )
 
 
-def my_handler(mytype, value, tb):
-    logging.exception(f"Uncaught exception: {value}")
+def my_handler(_mytype, value, _tb):
+    logging.exception("Uncaught exception: %s", value)
 
 
 sys.excepthook = my_handler
@@ -27,7 +27,7 @@ sys.excepthook = my_handler
 
 async def handle_post(request):
     data = await request.text()
-    logging.debug(f"Received: {data}")
+    logging.debug("Received: %s", data)
     return web.Response(text="OK")
 
 
@@ -53,14 +53,9 @@ def brightness(h, m, s):
 
 
 def log_time(now):
-    time_string = "%s-%s-%s(%s) - %s:%s:%s" % (
-        now.year,
-        now.month,
-        now.day,
-        now.weekday(),
-        now.hour,
-        now.minute,
-        now.second,
+    time_string = (
+        f"{now.year}-{now.month:02d}-{now.day:02d}({now.weekday()}) - "
+        f"{now.hour:02d}:{now.minute:02d}:{now.second:02d}"
     )
     if now.second in [0, 1]:
         logging.debug(time_string)
@@ -71,7 +66,7 @@ async def background_tasks():
         now = get_time()
         log_time(now)
         b = brightness(now.hour, now.minute, now.second)
-        st = "%02d:%02d " % (now.hour, now.minute)
+        st = f"{now.hour:02d}:{now.minute:02d}"
         show_time(st, bright=b)
         await asyncio.sleep(1)
 
