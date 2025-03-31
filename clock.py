@@ -17,6 +17,8 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s",
 )
 
+action_lock = asyncio.Lock()
+
 
 def my_handler(_mytype, value, _tb):
     logging.exception("Uncaught exception: %s", value)
@@ -28,6 +30,12 @@ sys.excepthook = my_handler
 async def handle_post(request):
     data = await request.text()
     logging.debug("Received: %s", data)
+    await action_lock.acquire()
+    sphd.write_string(data, brightness=1.0, font=font3x5)
+    sphd.show()
+    await asyncio.sleep(2)
+    action_lock.release()
+
     return web.Response(text="OK")
 
 
@@ -67,7 +75,10 @@ async def background_tasks():
         log_time(now)
         b = brightness(now.hour, now.minute, now.second)
         st = f"{now.hour:02d}:{now.minute:02d}"
-        show_time(st, bright=b)
+        if action_lock.locked():
+            logging.debug("Lock is taken, skipping clock update")
+        else:
+            show_time(st, bright=b)
         await asyncio.sleep(1)
 
 
