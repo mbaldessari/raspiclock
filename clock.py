@@ -3,13 +3,14 @@
 import asyncio
 import datetime
 import logging
+import math
 import sys
 import traceback
 
 import phatbeat
 import scrollphathd as sphd
 from aiohttp import web
-from scrollphathd.fonts import font3x5
+from scrollphathd.fonts import font3x5, font5x7
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -33,7 +34,7 @@ async def handle_post(request):
     data = await request.text()
     logging.debug("Received: %s", data)
     await action_lock.acquire()
-    sphd.write_string(data, brightness=1.0, font=font3x5)
+    sphd.write_string(data, brightness=1.0, font=font5x7)
     (w, h) = sphd.get_buffer_shape()
     logging.debug("Buffer size %sx%s", w, h)
     for _ in range(w * 2):
@@ -76,25 +77,40 @@ def log_time(now):
         logging.debug(time_string)
 
 
-def set_day_of_week():
+def set_day_of_week(now):
     # clean all day of week VU Leds
     phatbeat.clear(channel=0)
-    now = get_time()
     # We start from the left
     day_led = 7 - now.weekday()
     phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
     phatbeat.show()
 
 
+def set_hour_leds(now):
+    minute_led = 7 - math.floor(now.minute / 10)
+    for x in range(minute_led, 7 + 1):
+        phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
+    phatbeat.show()
+
+
 # Displays the time on the clock and the day of the weak on the
 async def background_tasks():
     last_hour = None
+    last_minute = None
     while True:
         now = get_time()
         log_time(now)
         current_hour = now.hour
+        current_minute = now.minute
         if current_hour != last_hour:
-            set_day_of_week()
+            set_day_of_week(now)
+            phatbeat.clear(channel=1)  # Every hour clean the hour progress bar
+            phatbeat.show()
+            last_hour = current_hour
+
+        if current_minute != last_minute:
+            set_hour_leds(now)
+            last_minute = current_minute
 
         b = brightness(now.hour, now.minute, now.second)
         if action_lock.locked():
