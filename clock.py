@@ -79,7 +79,6 @@ def log_time(now):
 def set_day_of_week():
     # clean all day of week VU Leds
     phatbeat.clear(channel=0)
-    phatbeat.show()
     now = get_time()
     # We start from the left
     day_led = 7 - now.weekday()
@@ -108,7 +107,6 @@ async def background_tasks():
 
 
 async def main():
-    phatbeat.clear()
     logging.info("Setting up webport...")
     app = web.Application()
     app.router.add_post("/receive", handle_post)
