@@ -1,0 +1,19 @@
+[Unit]
+Description=Pi clock clock
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/home/pi/clock/clock.py
+ExecStop=/bin/kill -9 $MAINPID
+WorkingDirectory=/home/pi/clock
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty2
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
