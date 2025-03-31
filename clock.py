@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import logging
 import sys
+import traceback
 
 import phatbeat
 import scrollphathd as sphd
@@ -20,8 +21,9 @@ logging.basicConfig(
 action_lock = asyncio.Lock()
 
 
-def my_handler(_mytype, value, _tb):
-    logging.exception("Uncaught exception: %s", value)
+def my_handler(exc_type, exc_value, exc_tb):
+    exception_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    logging.exception("Uncaught exception: %s", exception_text)
 
 
 sys.excepthook = my_handler
@@ -33,7 +35,7 @@ async def handle_post(request):
     await action_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font3x5)
     (w, h) = sphd.get_buffer_shape()
-    logging.debug(f"Buffer size {w}x{h}")
+    logging.debug("Buffer size %sx%s", w, h)
     for _ in range(w * 2):
         sphd.show()
         sphd.scroll(1)
@@ -74,23 +76,39 @@ def log_time(now):
         logging.debug(time_string)
 
 
+def set_day_of_week():
+    # clean all day of week VU Leds
+    phatbeat.clear(channel=0)
+    phatbeat.show()
+    now = get_time()
+    # We start from the left
+    day_led = 7 - now.weekday()
+    phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
+    phatbeat.show()
+
+
+# Displays the time on the clock and the day of the weak on the
 async def background_tasks():
+    last_hour = None
     while True:
         now = get_time()
         log_time(now)
+        current_hour = now.hour
+        if current_hour != last_hour:
+            set_day_of_week()
+
         b = brightness(now.hour, now.minute, now.second)
-        st = f"{now.hour:02d}:{now.minute:02d}"
         if action_lock.locked():
             logging.debug("Lock is taken, skipping clock update")
         else:
+            st = f"{now.hour:02d}:{now.minute:02d}"
             show_time(st, bright=b)
+
         await asyncio.sleep(1)
 
 
 async def main():
-    for channel in (0, 1):
-        phatbeat.set_pixel(0, 255, 255, 0, channel=channel)
-    phatbeat.show()
+    phatbeat.clear()
     logging.info("Setting up webport...")
     app = web.Application()
     app.router.add_post("/receive", handle_post)
