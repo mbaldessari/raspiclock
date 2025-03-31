@@ -7,7 +7,7 @@ help: ## This help message
 
 .PHONY: deploy
 deploy: ## Deploy the code to the clock
-	scp clock.py clock:clock
+	scp -rp clock.py sounds clock:clock/
 	ssh clock sudo systemctl restart clock
 
 .PHONY: super-linter
