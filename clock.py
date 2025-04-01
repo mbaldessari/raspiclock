@@ -19,7 +19,8 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s",
 )
 
-action_lock = asyncio.Lock()
+scrolllphat_lock = asyncio.Lock()
+phatbeat_lock = asyncio.Lock()
 
 
 def my_handler(exc_type, exc_value, exc_tb):
@@ -34,7 +35,7 @@ async def handle_post(request):
     data = await request.text()
     data = data[:100]
     logging.debug("Received: %s", data)
-    await action_lock.acquire()
+    await scrolllphat_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font5x7)
     (w, h) = sphd.get_buffer_shape()
     logging.debug("Buffer size %sx%s", w, h)
@@ -43,7 +44,30 @@ async def handle_post(request):
         sphd.scroll(1)
         await asyncio.sleep(0.05)
     await asyncio.sleep(2)
-    action_lock.release()
+    scrolllphat_lock.release()
+
+    return web.Response(text="OK")
+
+
+async def job_post(request):
+    data = await request.text()
+    data = data[:100]
+    logging.debug("Job: %s", data)
+    await phatbeat_lock.acquire()
+    match data:
+        case "start":
+            rgb = (0, 254, 254)
+        case "finished":
+            rgb = (0, 254, 0)
+        case "error":
+            rgb = (254, 0, 0)
+        case _:
+            rgb = (0, 0, 0)
+
+    clear_phatbeat(range(1, 0), channel=1)
+    phatbeat.set_pixel(0, rgb[0], rgb[1], rgb[2], brightness=0.05, channel=1)
+    phatbeat.show()
+    phatbeat_lock.release()
 
     return web.Response(text="OK")
 
@@ -84,20 +108,55 @@ def log_time(now):
         logging.debug(time_string)
 
 
-def set_day_of_week(now):
-    # clean all day of week VU Leds
-    phatbeat.clear(channel=0)
-    # We start from the left
-    day_led = 7 - now.weekday()
-    phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
+def clear_phatbeat(led_range, channel=0):
+    for i in led_range:
+        phatbeat.set_pixel(i, 0, 0, 0, 1.0, channel=channel)
+        logging.debug("wtf %d - %d" % (channel, i))
     phatbeat.show()
 
 
-def set_hour_leds(now):
-    minute_led = 7 - math.floor(now.minute / 10)
-    for x in range(minute_led, 7 + 1):
-        phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
-    phatbeat.show()
+async def set_day_of_week(now):
+    for attempt in range(1, 5):
+        try:
+            await asyncio.wait_for(phatbeat_lock.acquire(), timeout=0.01)
+            try:
+                logging.debug("set_day_of_week lock acquired")
+                # clean all day of week VU Leds
+                clear_phatbeat(range(7, 2), channel=0)
+                # We start from the left
+                day_led = 7 - now.weekday()
+                phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
+                phatbeat.show()
+            finally:
+                phatbeat_lock.release()
+                logging.debug("set_day_of_week lock released")
+            return
+
+        except asyncio.TimeoutError:
+            logging.debug("set_day_of_week lock already taken. Try: %d", attempt)
+            await asyncio.sleep(0.5)
+    logging.debug("set_day_of_week max retries hit")
+
+
+async def set_hour_leds(now):
+    for attempt in range(1, 5):
+        try:
+            await asyncio.wait_for(phatbeat_lock.acquire(), timeout=0.01)
+            try:
+                logging.debug("set_hour_leds lock acquired")
+                clear_phatbeat(range(7, 2), channel=1)
+                minute_led = 7 - math.floor(now.minute / 10)
+                for x in range(minute_led, 7 + 1):
+                    phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
+                phatbeat.show()
+            finally:
+                phatbeat_lock.release()
+                logging.debug("set_hour_leds lock released")
+            return
+        except asyncio.TimeoutError:
+            logging.debug("set_hour_leds lock already taken. Try: %d", attempt)
+            await asyncio.sleep(0.5)
+    logging.debug("set_hour_leds max retries hit")
 
 
 # Displays the time on the clock and the day of the weak on the
@@ -111,18 +170,16 @@ async def background_tasks():
         current_hour = now.hour
         current_minute = now.minute
         if current_hour != last_hour:
-            set_day_of_week(now)
-            phatbeat.clear(channel=1)  # Every hour clean the hour progress bar
-            phatbeat.show()
+            await set_day_of_week(now)
             last_hour = current_hour
             hour_counter += 1
 
         if current_minute != last_minute:
-            set_hour_leds(now)
+            await set_hour_leds(now)
             last_minute = current_minute
 
         b = brightness(now.hour, now.minute, now.second)
-        if action_lock.locked():
+        if scrolllphat_lock.locked():
             logging.debug("Lock is taken, skipping clock update")
         else:
             st = f"{now.hour:02d}:{now.minute:02d}"
@@ -136,6 +193,7 @@ async def main():
     logging.info("Setting up webport...")
     app = web.Application()
     app.router.add_post("/receive", handle_post)
+    app.router.add_post("/job", job_post)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, port=8080)
