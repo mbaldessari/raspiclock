@@ -8,7 +8,6 @@ import sys
 import traceback
 
 import phatbeat
-import pygame
 import scrollphathd as sphd
 from aiohttp import web
 from scrollphathd.fonts import font3x5, font5x7
@@ -117,9 +116,6 @@ async def background_tasks():
             phatbeat.show()
             last_hour = current_hour
             hour_counter += 1
-            # Play tiny beep every 4 hours if it's not in during the night
-            if hour_counter % 4 == 0 and emit_sound(now):
-                pygame.mixer.music.play()
 
         if current_minute != last_minute:
             set_hour_leds(now)
@@ -137,10 +133,6 @@ async def background_tasks():
 
 async def main():
     logging.info("Setting up sound...")
-    pygame.mixer.init()
-    pygame.mixer.music.load("sounds/tone-beep.wav")
-    pygame.mixer.music.set_volume(0.01)
-    pygame.mixer.music.play()
     logging.info("Setting up webport...")
     app = web.Application()
     app.router.add_post("/receive", handle_post)
