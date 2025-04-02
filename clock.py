@@ -139,7 +139,8 @@ async def set_hour_leds(now):
             await asyncio.wait_for(phatbeat_lock.acquire(), timeout=0.01)
             try:
                 logging.debug("set_hour_leds lock acquired")
-                await clear_phatbeat(range(7, 1, -1), channel=1)
+                if now.minute < 10:
+                    await clear_phatbeat(range(7, 1, -1), channel=1)
                 minute_led = 7 - math.floor(now.minute / 10)
                 for x in range(minute_led, 7 + 1):
                     phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
