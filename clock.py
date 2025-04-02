@@ -117,7 +117,7 @@ async def set_day_of_week(now):
             try:
                 logging.debug("set_day_of_week lock acquired")
                 # clean all day of week VU Leds
-                await clear_phatbeat(range(7, 2, -1), channel=0)
+                await clear_phatbeat(range(7, 1, -1), channel=0)
                 # We start from the left
                 day_led = 7 - now.weekday()
                 phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
@@ -139,7 +139,7 @@ async def set_hour_leds(now):
             await asyncio.wait_for(phatbeat_lock.acquire(), timeout=0.01)
             try:
                 logging.debug("set_hour_leds lock acquired")
-                await clear_phatbeat(range(7, 2, -1), channel=1)
+                await clear_phatbeat(range(7, 1, -1), channel=1)
                 minute_led = 7 - math.floor(now.minute / 10)
                 for x in range(minute_led, 7 + 1):
                     phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
