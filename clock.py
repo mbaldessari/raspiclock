@@ -19,7 +19,7 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s",
 )
 
-scrolllphat_lock = asyncio.Lock()
+scrollphat_lock = asyncio.Lock()
 phatbeat_lock = asyncio.Lock()
 
 
@@ -35,7 +35,7 @@ async def handle_post(request):
     data = await request.text()
     data = data[:100]
     logging.debug("Received: %s", data)
-    await scrolllphat_lock.acquire()
+    await scrollphat_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font5x7)
     (w, h) = sphd.get_buffer_shape()
     logging.debug("Buffer size %sx%s", w, h)
@@ -44,7 +44,7 @@ async def handle_post(request):
         sphd.scroll(1)
         await asyncio.sleep(0.05)
     await asyncio.sleep(2)
-    scrolllphat_lock.release()
+    scrollphat_lock.release()
 
     return web.Response(text="OK")
 
@@ -91,12 +91,6 @@ def brightness(h, m, s):
     if m in [0] and s in [0, 1, 2, 3, 4, 5]:
         return 1.0
     return 0.1
-
-
-def emit_sound(now):
-    if now.hour in [0, 1, 2, 3, 4, 5, 6]:
-        return False
-    return True
 
 
 def log_time(now):
@@ -179,7 +173,7 @@ async def background_tasks():
             last_minute = current_minute
 
         b = brightness(now.hour, now.minute, now.second)
-        if scrolllphat_lock.locked():
+        if scrollphat_lock.locked():
             logging.debug("Lock is taken, skipping clock update")
         else:
             st = f"{now.hour:02d}:{now.minute:02d}"
@@ -189,7 +183,12 @@ async def background_tasks():
 
 
 async def main():
-    logging.info("Setting up sound...")
+    logging.info("Clearing all LEDs...")
+    phatbeat.clear(channel=0)
+    phatbeat.clear(channel=1)
+    phatbeat.show()
+    sphd.clear()
+    sphd.show()
     logging.info("Setting up webport...")
     app = web.Application()
     app.router.add_post("/receive", handle_post)
