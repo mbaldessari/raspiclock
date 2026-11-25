@@ -2,8 +2,11 @@
 
 import asyncio
 import datetime
+import hmac
 import logging
 import math
+import os
+import time
 import sys
 import traceback
 
@@ -27,10 +30,37 @@ JOB_COLORS = {
     "error": (254, 0, 0),
 }
 MAX_MESSAGE_LENGTH = 100
+HMAC_SECRET = os.environ.get("CLOCK_HMAC_SECRET")
+MAX_REQUEST_AGE_SECONDS = 300
 
 
 def sanitize_log_value(value):
     return value.encode("unicode_escape").decode("ascii")
+
+
+def verify_request(request, body):
+    if not HMAC_SECRET:
+        logging.error("CLOCK_HMAC_SECRET is not set")
+        return False
+
+    timestamp = request.headers.get("X-Timestamp", "")
+    signature = request.headers.get("X-Signature", "")
+    if not timestamp.isdigit() or not signature:
+        logging.debug("Missing or invalid authentication headers")
+        return False
+
+    request_time = int(timestamp)
+    if abs(time.time() - request_time) > MAX_REQUEST_AGE_SECONDS:
+        logging.debug("Request timestamp is outside the accepted window")
+        return False
+
+    signed_data = (
+        f"{request.method}\n{request.path}\n{timestamp}\n".encode("ascii") + body
+    )
+    expected_signature = hmac.new(
+        HMAC_SECRET.encode("utf-8"), signed_data, "sha256"
+    ).hexdigest()
+    return hmac.compare_digest(expected_signature, signature)
 
 
 def my_handler(exc_type, exc_value, exc_tb):
@@ -43,6 +73,9 @@ sys.excepthook = my_handler
 
 async def handle_post(request):
     data = await request.text()
+    if not verify_request(request, data):
+        return web.Response(status=401, text="Unauthorized")
+
     data = data[:MAX_MESSAGE_LENGTH]
     logging.debug("Received: %s", sanitize_log_value(data))
     async with scrollphat_lock:
@@ -60,6 +93,9 @@ async def handle_post(request):
 
 async def job_post(request):
     data = await request.text()
+    if not verify_request(request, data):
+        return web.Response(status=401, text="Unauthorized")
+
     data = data[:MAX_MESSAGE_LENGTH]
     logging.debug("Job: %s", sanitize_log_value(data))
     async with phatbeat_lock:
