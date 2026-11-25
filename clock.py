@@ -29,6 +29,10 @@ JOB_COLORS = {
 MAX_MESSAGE_LENGTH = 100
 
 
+def sanitize_log_value(value):
+    return value.encode("unicode_escape").decode("ascii")
+
+
 def my_handler(exc_type, exc_value, exc_tb):
     exception_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     logging.error("Uncaught exception: %s", exception_text)
@@ -40,7 +44,7 @@ sys.excepthook = my_handler
 async def handle_post(request):
     data = await request.text()
     data = data[:MAX_MESSAGE_LENGTH]
-    logging.debug("Received: %s", data)
+    logging.debug("Received: %s", sanitize_log_value(data))
     async with scrollphat_lock:
         sphd.write_string(data, brightness=1.0, font=font5x7)
         w, h = sphd.get_buffer_shape()
@@ -57,7 +61,7 @@ async def handle_post(request):
 async def job_post(request):
     data = await request.text()
     data = data[:MAX_MESSAGE_LENGTH]
-    logging.debug("Job: %s", data)
+    logging.debug("Job: %s", sanitize_log_value(data))
     async with phatbeat_lock:
         rgb = JOB_COLORS.get(data, (0, 0, 0))
         clear_phatbeat(range(1, 0, -1), channel=1)
