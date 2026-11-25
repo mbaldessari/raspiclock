@@ -21,6 +21,11 @@ logging.basicConfig(
 
 scrollphat_lock = asyncio.Lock()
 phatbeat_lock = asyncio.Lock()
+JOB_COLORS = {
+    "start": (0, 254, 254),
+    "finished": (0, 254, 0),
+    "error": (254, 0, 0),
+}
 
 
 def my_handler(exc_type, exc_value, exc_tb):
@@ -53,18 +58,9 @@ async def job_post(request):
     data = data[:100]
     logging.debug("Job: %s", data)
     async with phatbeat_lock:
-        match data:
-            case "start":
-                rgb = (0, 254, 254)
-            case "finished":
-                rgb = (0, 254, 0)
-            case "error":
-                rgb = (254, 0, 0)
-            case _:
-                rgb = (0, 0, 0)
-
-        await clear_phatbeat(range(1, 0, -1), channel=1)
-        phatbeat.set_pixel(0, rgb[0], rgb[1], rgb[2], brightness=0.05, channel=1)
+        rgb = JOB_COLORS.get(data, (0, 0, 0))
+        clear_phatbeat(range(1, 0, -1), channel=1)
+        phatbeat.set_pixel(0, *rgb, brightness=0.05, channel=1)
         phatbeat.show()
 
     return web.Response(text="OK")
@@ -80,7 +76,7 @@ def show_time(s, bright=0.1):
     sphd.show()
 
 
-# Turn off from 23:01 to 5:59
+# Turn off from midnight to 6:59
 # low brightness normally
 # high brightness for 6 seconds at the start of the hour
 def brightness(h, m, s):
@@ -100,11 +96,11 @@ def log_time(now):
         logging.debug(time_string)
 
 
-async def clear_phatbeat(led_range, channel=0):
-    logging.debug("wtf %d - %s" % (channel, led_range))
-    for i in led_range:
-        phatbeat.set_pixel(i, 0, 0, 0, 1.0, channel=channel)
-        logging.debug("wtf2 %d - %d" % (channel, i))
+def clear_phatbeat(led_range, channel=0):
+    logging.debug("Clearing LEDs on channel %s: %s", channel, led_range)
+    for led in led_range:
+        phatbeat.set_pixel(led, 0, 0, 0, 1.0, channel=channel)
+        logging.debug("Cleared LED %s on channel %s", led, channel)
     phatbeat.show()
 
 
@@ -115,7 +111,7 @@ async def set_day_of_week(now):
             try:
                 logging.debug("set_day_of_week lock acquired")
                 # clean all day of week VU Leds
-                await clear_phatbeat(range(7, 1, -1), channel=0)
+                clear_phatbeat(range(7, 1, -1), channel=0)
                 # We start from the left
                 day_led = 7 - now.weekday()
                 phatbeat.set_pixel(day_led, 0, 0, 254, brightness=1.0, channel=0)
@@ -138,7 +134,7 @@ async def set_hour_leds(now):
             try:
                 logging.debug("set_hour_leds lock acquired")
                 if now.minute < 10:
-                    await clear_phatbeat(range(7, 1, -1), channel=1)
+                    clear_phatbeat(range(7, 1, -1), channel=1)
                 minute_led = 7 - math.floor(now.minute / 10)
                 for x in range(minute_led, 7 + 1):
                     phatbeat.set_pixel(x, 0, 254, 0, brightness=0.05, channel=1)
