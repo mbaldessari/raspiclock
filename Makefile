@@ -10,6 +10,14 @@ deploy: ## Deploy the code to the clock
 	scp -rp clock.py sounds clock:clock/
 	ssh clock sudo systemctl restart clock
 
+.PHONY: black
+black: ## Format Python code with Black
+	black .
+
+.PHONY: black-check
+black-check: ## Check Python code with Black
+	black --check .
+
 .PHONY: super-linter
 super-linter: ## Runs super linter locally
 	rm -rf .mypy_cache

@@ -37,7 +37,7 @@ async def handle_post(request):
     logging.debug("Received: %s", data)
     await scrollphat_lock.acquire()
     sphd.write_string(data, brightness=1.0, font=font5x7)
-    (w, h) = sphd.get_buffer_shape()
+    w, h = sphd.get_buffer_shape()
     logging.debug("Buffer size %sx%s", w, h)
     for _ in range(w * 2):
         sphd.show()
