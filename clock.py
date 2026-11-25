@@ -25,7 +25,7 @@ phatbeat_lock = asyncio.Lock()
 
 def my_handler(exc_type, exc_value, exc_tb):
     exception_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    logging.exception("Uncaught exception: %s", exception_text)
+    logging.error("Uncaught exception: %s", exception_text)
 
 
 sys.excepthook = my_handler
@@ -35,16 +35,15 @@ async def handle_post(request):
     data = await request.text()
     data = data[:100]
     logging.debug("Received: %s", data)
-    await scrollphat_lock.acquire()
-    sphd.write_string(data, brightness=1.0, font=font5x7)
-    w, h = sphd.get_buffer_shape()
-    logging.debug("Buffer size %sx%s", w, h)
-    for _ in range(w * 2):
-        sphd.show()
-        sphd.scroll(1)
-        await asyncio.sleep(0.05)
-    await asyncio.sleep(2)
-    scrollphat_lock.release()
+    async with scrollphat_lock:
+        sphd.write_string(data, brightness=1.0, font=font5x7)
+        w, h = sphd.get_buffer_shape()
+        logging.debug("Buffer size %sx%s", w, h)
+        for _ in range(w * 2):
+            sphd.show()
+            sphd.scroll(1)
+            await asyncio.sleep(0.05)
+        await asyncio.sleep(2)
 
     return web.Response(text="OK")
 
@@ -53,21 +52,20 @@ async def job_post(request):
     data = await request.text()
     data = data[:100]
     logging.debug("Job: %s", data)
-    await phatbeat_lock.acquire()
-    match data:
-        case "start":
-            rgb = (0, 254, 254)
-        case "finished":
-            rgb = (0, 254, 0)
-        case "error":
-            rgb = (254, 0, 0)
-        case _:
-            rgb = (0, 0, 0)
+    async with phatbeat_lock:
+        match data:
+            case "start":
+                rgb = (0, 254, 254)
+            case "finished":
+                rgb = (0, 254, 0)
+            case "error":
+                rgb = (254, 0, 0)
+            case _:
+                rgb = (0, 0, 0)
 
-    await clear_phatbeat(range(1, 0, -1), channel=1)
-    phatbeat.set_pixel(0, rgb[0], rgb[1], rgb[2], brightness=0.05, channel=1)
-    phatbeat.show()
-    phatbeat_lock.release()
+        await clear_phatbeat(range(1, 0, -1), channel=1)
+        phatbeat.set_pixel(0, rgb[0], rgb[1], rgb[2], brightness=0.05, channel=1)
+        phatbeat.show()
 
     return web.Response(text="OK")
 
@@ -159,7 +157,6 @@ async def set_hour_leds(now):
 async def background_tasks():
     last_hour = None
     last_minute = None
-    hour_counter = 0
     while True:
         now = get_time()
         log_time(now)
@@ -168,7 +165,6 @@ async def background_tasks():
         if current_hour != last_hour:
             await set_day_of_week(now)
             last_hour = current_hour
-            hour_counter += 1
 
         if current_minute != last_minute:
             await set_hour_leds(now)
@@ -201,10 +197,7 @@ async def main():
     await site.start()
     logging.info("Starting clock service...")
     sphd.flip(x=True, y=True)
-    await asyncio.gather(
-        background_tasks(),
-        asyncio.Event().wait(),
-    )
+    await background_tasks()
 
 
 if __name__ == "__main__":
