@@ -26,6 +26,7 @@ JOB_COLORS = {
     "finished": (0, 254, 0),
     "error": (254, 0, 0),
 }
+MAX_MESSAGE_LENGTH = 100
 
 
 def my_handler(exc_type, exc_value, exc_tb):
@@ -38,7 +39,7 @@ sys.excepthook = my_handler
 
 async def handle_post(request):
     data = await request.text()
-    data = data[:100]
+    data = data[:MAX_MESSAGE_LENGTH]
     logging.debug("Received: %s", data)
     async with scrollphat_lock:
         sphd.write_string(data, brightness=1.0, font=font5x7)
@@ -55,7 +56,7 @@ async def handle_post(request):
 
 async def job_post(request):
     data = await request.text()
-    data = data[:100]
+    data = data[:MAX_MESSAGE_LENGTH]
     logging.debug("Job: %s", data)
     async with phatbeat_lock:
         rgb = JOB_COLORS.get(data, (0, 0, 0))
@@ -184,7 +185,7 @@ async def main():
     sphd.clear()
     sphd.show()
     logging.info("Setting up webport...")
-    app = web.Application()
+    app = web.Application(client_max_size=MAX_MESSAGE_LENGTH)
     app.router.add_post("/receive", handle_post)
     app.router.add_post("/job", job_post)
     runner = web.AppRunner(app)
