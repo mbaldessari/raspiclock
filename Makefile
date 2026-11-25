@@ -8,6 +8,8 @@ help: ## This help message
 .PHONY: deploy
 deploy: ## Deploy the code to the clock
 	scp -rp clock.py sounds clock:clock/
+	ssh clock sudo cp /home/pi/clock/scripts/clock.service /etc/systemd/system/clock.service
+	ssh clock sudo systemctl daemon-reload
 	ssh clock sudo systemctl restart clock
 
 .PHONY: black
