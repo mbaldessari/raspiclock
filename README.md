@@ -47,6 +47,44 @@ curl \
   http://clock:8080/receive
 ```
 
+The same request with Ansible:
+
+```yaml
+- name: Send a signed request to the clock
+  hosts: localhost
+  gather_facts: false
+  vars:
+    clock_secret: replace-with-a-long-random-secret
+    clock_body: Job finished
+    clock_timestamp: "{{ lookup('ansible.builtin.pipe', 'date +%s') }}"
+    signed_payload: "POST\n/receive\n{{ clock_timestamp }}\n{{ clock_body }}"
+  tasks:
+    - name: Calculate the HMAC-SHA256 signature
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - dgst
+          - -sha256
+          - -hmac
+          - "{{ clock_secret }}"
+          - -hex
+        stdin: "{{ signed_payload }}"
+      register: signature_command
+      changed_when: false
+      no_log: true
+
+    - name: POST the job message
+      ansible.builtin.uri:
+        url: http://clock:8080/receive
+        method: POST
+        body: "{{ clock_body }}"
+        headers:
+          X-Timestamp: "{{ clock_timestamp }}"
+          X-Signature: "{{ signature_command.stdout.split()[-1] }}"
+        status_code: 200
+      no_log: true
+```
+
 For `/job`, replace `/receive` in the signed data with `/job`.
 
 ### Configure systemd
