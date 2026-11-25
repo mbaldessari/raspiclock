@@ -37,4 +37,4 @@ super-linter: ## Runs super linter locally
 					$(DISABLE_LINTERS) \
 					-v $(PWD):/tmp/lint:rw,z \
 					-w /tmp/lint \
-					ghcr.io/super-linter/super-linter:slim-v7
+					ghcr.io/super-linter/super-linter:slim-v7@sha256:a7ceb99ad01d8b1d36c723f680b59b6da606c2715e261e501fe0c869068adac6
